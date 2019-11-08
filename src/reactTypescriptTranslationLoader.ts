@@ -1,16 +1,23 @@
+import * as fs from "fs";
 import * as path from "path";
 import {ComponentDoc, FileParser, withDefaultConfig} from "react-docgen-typescript";
 import * as ts from "typescript";
 import * as webpack from "webpack";
 
-let program: ts.Program;
+interface TSFile {
+  text?: string;
+  version: number;
+}
+
+let languageService: ts.LanguageService | null = null;
+const files: Map<string, TSFile> = new Map<string, TSFile>();
 const componentTranslationsMap: Map<string, Set<string>> = new Map<string, Set<string>>();
 
 function visitReactComponent(sourceFile: ts.SourceFile, checker: ts.TypeChecker) {
   visitReactComponentNode(sourceFile);
 
   function visitReactComponentNode(node: ts.Node) {
-    if (ts.isClassDeclaration(node)) {
+    if (ts.isClassDeclaration(node) && node.heritageClauses) {
       node.heritageClauses.forEach((heritageClause) => {
         const propInterface = heritageClause && heritageClause.types && heritageClause.types[0].typeArguments
           ? heritageClause.types[0].typeArguments[0]
@@ -38,26 +45,57 @@ function visitReactComponent(sourceFile: ts.SourceFile, checker: ts.TypeChecker)
   }
 }
 
-export default function loader(this: webpack.loader.LoaderContext, source: string) {
-  if (!program) {
-    const tsConfigFile = ts.parseJsonConfigFileContent({}, ts.sys, path.dirname(this.context), {});
-    program = ts.createProgram(tsConfigFile.fileNames, {jsx: ts.JsxEmit.React});
-    const checker = program.getTypeChecker();
-    for (const sourceFile of program.getSourceFiles()) {
-      if (!sourceFile.isDeclarationFile) {
-        visitReactComponent(sourceFile, checker);
-      }
+export default function loader(
+  this: webpack.loader.LoaderContext,
+  source: string,
+) {
+  const callback = this.async();
+
+  try {
+    const newSource = processResource(this, source);
+
+    if (!callback) return newSource;
+    callback(null, newSource);
+    return;
+  } catch (e) {
+    if (callback) {
+      callback(e);
+      return;
+    }
+    throw e;
+  }
+}
+
+function processResource(context: webpack.loader.LoaderContext, source: string) {
+  context.cacheable(true);
+
+  const tsConfigFile = ts.parseJsonConfigFileContent({}, ts.sys, path.dirname(context.context), {});
+  loadFiles(tsConfigFile.fileNames);
+
+  if (!languageService) {
+    const servicesHost = createServiceHost({allowJs: true, jsx: ts.JsxEmit.React}, files);
+    languageService = ts.createLanguageService(
+      servicesHost,
+      ts.createDocumentRegistry(),
+    );
+  }
+  const program = languageService.getProgram();
+  const checker = program.getTypeChecker();
+  for (const sourceFile of program.getSourceFiles()) {
+    if (!sourceFile.isDeclarationFile) {
+      visitReactComponent(sourceFile, checker);
     }
   }
+
   const parser: FileParser = withDefaultConfig();
-  const componentDocs = parser.parseWithProgramProvider(this.resourcePath, () => program);
+  const componentDocs = parser.parseWithProgramProvider(context.resourcePath, () => languageService.getProgram());
   const codeBlocks = componentDocs.map((componentDoc) => {
     const translationProperties: string[] = Array.from(componentTranslationsMap.get(componentDoc.displayName) || []);
     if (translationProperties.length) {
       return getTranslationPropertiesStatement(componentDoc, translationProperties);
     }
   });
-  const sourceFile = ts.createSourceFile(this.resourcePath, source, ts.ScriptTarget.ESNext);
+  const sourceFile = ts.createSourceFile(context.resourcePath, source, ts.ScriptTarget.ESNext);
   const printer = ts.createPrinter({newLine: ts.NewLineKind.LineFeed});
   const printNode = (sourceNode: ts.Node) => printer.printNode(ts.EmitHint.Unspecified, sourceNode, sourceFile);
   return codeBlocks.reduce((acc, node) => node ? acc + printNode(node) : acc, source);
@@ -88,4 +126,61 @@ function insertTsIgnoreBeforeStatement(statement: ts.Statement): ts.Statement {
     },
   ]);
   return statement;
+}
+
+function loadFiles(filesToLoad: string[]): void {
+  filesToLoad.forEach(filePath => {
+    const normalizedFilePath = path.normalize(filePath);
+    const file = files.get(normalizedFilePath);
+    const text = fs.readFileSync(normalizedFilePath, "utf-8");
+
+    if (!file) {
+      files.set(normalizedFilePath, {
+        text,
+        version: 0,
+      });
+    } else if (file.text !== text) {
+      files.set(normalizedFilePath, {
+        text,
+        version: file.version + 1,
+      });
+    }
+  });
+}
+
+function createServiceHost(
+  compilerOptions: ts.CompilerOptions,
+  files: Map<string, TSFile>,
+): ts.LanguageServiceHost {
+  return {
+    getScriptFileNames: () => {
+      return Array.from(files.keys());
+    },
+    getScriptVersion: fileName => {
+      const file = files.get(fileName);
+      return (file && file.version.toString()) || "";
+    },
+    getScriptSnapshot: fileName => {
+      if (!fs.existsSync(fileName)) {
+        return undefined;
+      }
+
+      let file = files.get(fileName);
+
+      if (file === undefined) {
+        const text = fs.readFileSync(fileName).toString();
+
+        file = { version: 0, text };
+        files.set(fileName, file);
+      }
+
+      return ts.ScriptSnapshot.fromString(file!.text!);
+    },
+    getCurrentDirectory: () => process.cwd(),
+    getCompilationSettings: () => compilerOptions,
+    getDefaultLibFileName: options => ts.getDefaultLibFilePath(options),
+    fileExists: ts.sys.fileExists,
+    readFile: ts.sys.readFile,
+    readDirectory: ts.sys.readDirectory,
+  };
 }
