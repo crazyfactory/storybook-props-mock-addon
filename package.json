@@ -1,8 +1,6 @@
 {
   "name": "@crazyfactory/storybook-props-mock-addon",
   "description": "",
-  "main": "lib/index.js",
-  "typings": "lib/index",
   "scripts": {
     "build": "tsc && tsc -p tsconfig.es6.json",
     "clean": "rimraf lib",
