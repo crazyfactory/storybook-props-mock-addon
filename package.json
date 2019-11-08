@@ -1,0 +1,26 @@
+{
+  "name": "@crazyfactory/storybook-props-mock-addon",
+  "description": "",
+  "main": "lib/index.js",
+  "typings": "lib/index",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rimraf lib",
+    "prepublish": "npm run clean && tsc",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "dev@crazy-factorycom",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^12.12.6",
+    "@types/react": "^16.9.11",
+    "@types/webpack": "^4.39.8",
+    "rimraf": "^3.0.0"
+  },
+  "dependencies": {
+    "@crazyfactory/frontend-commons": "^2.0.0",
+    "react-docgen-typescript": "^1.15.1",
+    "typescript": "^3.7.2",
+    "webpack": "^4.41.2"
+  }
+}
