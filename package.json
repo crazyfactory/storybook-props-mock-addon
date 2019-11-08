@@ -4,8 +4,9 @@
   "main": "lib/index.js",
   "typings": "lib/index",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && tsc -p tsconfig.es6.json",
     "clean": "rimraf lib",
+    "prebuild": "npm run clean -s",
     "prepublish": "npm run clean && tsc",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
