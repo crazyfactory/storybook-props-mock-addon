@@ -5,14 +5,14 @@ It will generate translation based on `translation` prop's keys.
 ### Usage
 
 webpack.config.js
-```
+```javascript
   loader: path.resolve('./node_modules/@crazyfactory/storybook-props-mock-addon/lib/reactTypescriptTranslationLoader.js')
 ```
 
 config.js
-```
-import {withMockedTranslation} from "@crazyfactory/storybook-props-mock-addon/lib/withMockedTranslation";
-addDecorator(withMockedTranslation());
+```javascript
+  import {withMockedTranslation} from "@crazyfactory/storybook-props-mock-addon/lib/withMockedTranslation";
+  addDecorator(withMockedTranslation());
 ```
 
 story files
