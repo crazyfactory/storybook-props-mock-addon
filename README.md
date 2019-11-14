@@ -1,6 +1,6 @@
 ## Only `translation` can be mocked for now
 
-It will generate translation based on `translation` prop's keys.
+It will generate translation based on `translation` prop's keys. Nested translation is also supported.
 
 ### Usage
 
@@ -24,20 +24,39 @@ story files
 
 ### Example
 
-CustomerInfo.tsx
-```typescript
+Age.tsx
+```typescript jsx
   import * as React from "react";
-  interface IProps {
+  export interface AgeProps {
+    age: number;
+    translation: {
+      age: string;
+    };
+  }
+
+  export const Age = ({age, translation}: AgeProps) => (
+    <div>
+      {translation.age}: {age}
+    </div>
+  );
+```
+
+CustomerInfo.tsx
+```typescript jsx
+  import * as React from "react";
+  import {Age, AgeProps} from "./Age";
+  interface CustomerInfoProps {
+    ageProps: AgeProps;
     firstName: string;
     lastName: string;
     translation: {
       firstName: string;
       lastName: string;
-    }
+    };
   }
-  export class CustomerInfo extends React.Component<IProps> {
+  export class CustomerInfo extends React.Component<CustomerInfoProps> {
     public render(): JSX.Element {
-      const {firstName, lastName, translation} = this.props;
+      const {ageProps, firstName, lastName, translation} = this.props;
       return (
         <div>
           <div>
@@ -46,6 +65,7 @@ CustomerInfo.tsx
           <div>
             {translation.lastName}: {lastName}
           </div>
+          <Age {...ageProps}/>
         </div>
       );
     }
@@ -53,19 +73,24 @@ CustomerInfo.tsx
 ```
 
 CustomerInfo.stories.tsx
-```typescript
+```typescript jsx
   import * as React from "react";
   import {CustomerInfo} from "./CustomerInfo";
   
   export default {
     component: CustomerInfo,
     title: "CustomerInfo"
-  }
+  };
   
   export const Simple = ({mockedTranslation}) => (
-    <CustomerInfo firstName={"John"} lastName={"Lee"} translation={mockedTranslation}/>
+    <CustomerInfo
+      ageProps={{age: 10, translation: mockedTranslation}}
+      firstName={"John"}
+      lastName={"Lee"}
+      translation={mockedTranslation}
+    />
   );
 ```
 
 Then run storybook, the addon will generate translation for you by pascalizing translation keys
-![image](https://user-images.githubusercontent.com/13611391/68566442-ec9d0c00-0488-11ea-9550-67ce15efa3f8.png)
+![image](https://user-images.githubusercontent.com/13611391/68833327-caec9080-06e5-11ea-8120-55a6c97e5f23.png)
