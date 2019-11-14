@@ -3,6 +3,7 @@ import * as path from "path";
 import {ComponentDoc, FileParser, withDefaultConfig} from "react-docgen-typescript";
 import * as ts from "typescript";
 import * as webpack from "webpack";
+import {visitReactComponent} from "./visitReactComponent";
 
 interface TSFile {
   text?: string;
@@ -11,39 +12,6 @@ interface TSFile {
 
 let languageService: ts.LanguageService | null = null;
 const files: Map<string, TSFile> = new Map<string, TSFile>();
-const componentTranslationsMap: Map<string, Set<string>> = new Map<string, Set<string>>();
-
-function visitReactComponent(sourceFile: ts.SourceFile, checker: ts.TypeChecker) {
-  visitReactComponentNode(sourceFile);
-
-  function visitReactComponentNode(node: ts.Node) {
-    if (ts.isClassDeclaration(node) && node.heritageClauses) {
-      node.heritageClauses.forEach((heritageClause) => {
-        const propInterface = heritageClause && heritageClause.types && heritageClause.types[0].typeArguments
-          ? heritageClause.types[0].typeArguments[0]
-          : null;
-        if (
-          heritageClause.getText(sourceFile).indexOf("extends") !== -1
-          && ts.isExpressionWithTypeArguments(heritageClause.types[0])
-          && ts.isPropertyAccessExpression(heritageClause.types[0].expression)
-          && heritageClause.types[0].expression.getText(sourceFile).indexOf("React.Component") !== -1
-          && ts.isTypeReferenceNode(propInterface)
-        ) {
-          const componentName = node.name.getText(sourceFile);
-          const properties = checker.getPropertiesOfType(checker.getTypeAtLocation(propInterface.typeName));
-          properties.forEach((property) => {
-            if (property.getName() === "translation") {
-              const translations = checker.getPropertiesOfType(checker.getTypeAtLocation(property.valueDeclaration));
-              componentTranslationsMap.set(componentName, new Set(translations.map((t) => t.getName())));
-            }
-          });
-        }
-      });
-    }
-
-    ts.forEachChild(node, visitReactComponentNode);
-  }
-}
 
 export default function loader(
   this: webpack.loader.LoaderContext,
@@ -81,9 +49,10 @@ function processResource(context: webpack.loader.LoaderContext, source: string) 
   }
   const program = languageService.getProgram();
   const checker = program.getTypeChecker();
+  const componentTranslationsMap: Map<string, Set<string>> = new Map<string, Set<string>>();
   for (const sourceFile of program.getSourceFiles()) {
     if (!sourceFile.isDeclarationFile) {
-      visitReactComponent(sourceFile, checker);
+      visitReactComponent(sourceFile, checker, componentTranslationsMap);
     }
   }
 

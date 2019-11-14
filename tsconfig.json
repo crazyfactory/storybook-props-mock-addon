@@ -8,6 +8,7 @@
     "src/reactTypescriptTranslationLoader.ts"
   ],
   "exclude": [
+    "mocks",
     "node_modules",
     "lib",
     "jest",
